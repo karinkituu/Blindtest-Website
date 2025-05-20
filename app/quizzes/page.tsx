@@ -5,7 +5,23 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { MusicIcon, PlayIcon, PlusCircleIcon, SearchIcon } from "lucide-react"
+import { MusicIcon, PlayIcon, PlusCircleIcon, SearchIcon, MoreHorizontalIcon } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type Quiz = {
   id: string
@@ -18,6 +34,7 @@ type Quiz = {
 export default function QuizzesPage() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [searchQuery, setSearchQuery] = useState("")
+  const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null)
 
   useEffect(() => {
     // Charger les quiz depuis le localStorage
@@ -26,6 +43,19 @@ export default function QuizzesPage() {
   }, [])
 
   const filteredQuizzes = quizzes.filter((quiz) => quiz.title.toLowerCase().includes(searchQuery.toLowerCase()))
+
+  const handleDeleteQuiz = (quiz: Quiz) => {
+    setQuizToDelete(quiz)
+  }
+
+  const confirmDelete = () => {
+    if (quizToDelete) {
+      const updatedQuizzes = quizzes.filter((quiz) => quiz.id !== quizToDelete.id)
+      setQuizzes(updatedQuizzes)
+      localStorage.setItem("quizzes", JSON.stringify(updatedQuizzes))
+      setQuizToDelete(null)
+    }
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -79,14 +109,37 @@ export default function QuizzesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredQuizzes.map((quiz) => (
-            <Card key={quiz.id}>
-              <CardHeader>
-                <CardTitle>{quiz.title}</CardTitle>
-                <CardDescription>{quiz.description || "Pas de description"}</CardDescription>
+            <Card key={quiz.id} className="relative">
+              <div className="absolute top-2 right-2 z-10">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreHorizontalIcon className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => handleDeleteQuiz(quiz)}
+                    >
+                      Supprimer
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              <CardHeader className="pr-12">
+                <div className="min-w-0">
+                  <CardTitle className="truncate" title={quiz.title}>
+                    {quiz.title}
+                  </CardTitle>
+                  <CardDescription className="truncate" title={quiz.description || "Pas de description"}>
+                    {quiz.description || "Pas de description"}
+                  </CardDescription>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm">
-                  <MusicIcon className="h-4 w-4" />
+                  <MusicIcon className="h-4 w-4 flex-shrink-0" />
                   <span>
                     {quiz.tracks.length} chanson{quiz.tracks.length !== 1 ? "s" : ""}
                   </span>
@@ -107,6 +160,23 @@ export default function QuizzesPage() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!quizToDelete} onOpenChange={() => setQuizToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Êtes-vous sûr de vouloir supprimer ce quiz ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Le quiz "<span className="truncate inline-block max-w-[200px] align-bottom" title={quizToDelete?.title}>{quizToDelete?.title}</span>" sera définitivement supprimé.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

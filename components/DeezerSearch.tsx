@@ -32,21 +32,25 @@ export function DeezerSearch({ query, onAddTrack }: SearchResultsProps) {
 
       setLoading(true)
       try {
-        // Utilisation de notre route API
         const response = await fetch(`/api/deezer?q=${encodeURIComponent(query)}`)
+        if (!response.ok) {
+          throw new Error('Erreur lors de la recherche')
+        }
         const data = await response.json()
         
-        // Transformation des données Deezer dans notre format
-        const formattedResults = data.data.map((track: any) => ({
-          id: track.id.toString(),
-          title: track.title,
-          artist: track.artist.name,
-          album: track.album.title,
-          image: track.album.cover_medium,
-          preview: track.preview
-        }))
-
-        setResults(formattedResults)
+        if (data.data && Array.isArray(data.data)) {
+          const formattedResults = data.data.map((track: any) => ({
+            id: track.id.toString(),
+            title: track.title,
+            artist: track.artist.name,
+            album: track.album.title,
+            image: track.album.cover_medium,
+            preview: track.preview
+          }))
+          setResults(formattedResults)
+        } else {
+          setResults([])
+        }
       } catch (error) {
         console.error("Erreur lors de la recherche Deezer:", error)
         setResults([])
@@ -55,7 +59,6 @@ export function DeezerSearch({ query, onAddTrack }: SearchResultsProps) {
       }
     }
 
-    // Délai de 500ms pour éviter trop de requêtes
     const timeoutId = setTimeout(searchDeezer, 500)
     return () => clearTimeout(timeoutId)
   }, [query])
@@ -86,32 +89,40 @@ export function DeezerSearch({ query, onAddTrack }: SearchResultsProps) {
       ) : (
         <div className="space-y-2">
           {results.map((track) => (
-            <div key={track.id} className="flex items-center justify-between p-3 rounded-md bg-card border">
-              <div className="flex items-center gap-3">
+            <div key={track.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 rounded-md bg-card border gap-3">
+              <div className="flex items-center gap-3 w-full sm:w-[300px]">
                 <img
                   src={track.image}
                   alt={track.title}
-                  className="w-10 h-10 rounded"
+                  className="w-12 h-12 rounded flex-shrink-0"
                 />
-                <div>
-                  <p className="font-medium">{track.title}</p>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate" title={track.title}>{track.title}</p>
+                  <p className="text-sm text-muted-foreground truncate" title={`${track.artist} • ${track.album}`}>
                     {track.artist} • {track.album}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 {track.preview && (
-                  <audio controls className="h-8">
-                    <source src={track.preview} type="audio/mpeg" />
-                    Votre navigateur ne supporte pas l'élément audio.
-                  </audio>
+                  <div className="w-full sm:w-[300px]">
+                    <audio 
+                      controls 
+                      className="h-8 w-full"
+                      controlsList="nodownload"
+                      style={{ minWidth: '300px' }}
+                    >
+                      <source src={track.preview} type="audio/mpeg" />
+                      Votre navigateur ne supporte pas l'élément audio.
+                    </audio>
+                  </div>
                 )}
                 <Button
                   size="sm"
                   variant={addedTracks.includes(track.id) ? "outline" : "default"}
                   onClick={() => handleAddTrack(track)}
                   disabled={addedTracks.includes(track.id)}
+                  className="w-full sm:w-auto whitespace-nowrap"
                 >
                   <PlusIcon className="h-4 w-4 mr-1" />
                   {addedTracks.includes(track.id) ? "Ajouté" : "Ajouter"}

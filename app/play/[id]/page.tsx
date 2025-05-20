@@ -211,7 +211,7 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold">{quiz.title}</h1>
+          <h1 className="text-2xl font-bold truncate" title={quiz.title}>{quiz.title}</h1>
           <div className="flex items-center justify-between mt-2">
             <div className="text-sm text-muted-foreground">
               Question {currentQuestion + 1} sur {quiz.tracks.length}
@@ -226,7 +226,7 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <MusicIcon className="h-5 w-5" />
+              <MusicIcon className="h-5 w-5 flex-shrink-0" />
               <span>Quelle est cette chanson ?</span>
             </CardTitle>
             <CardDescription>Écoutez l'extrait et choisissez la bonne réponse</CardDescription>
@@ -285,12 +285,12 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
                   } ${showResult && option.isCorrect ? "border-green-500 bg-green-50/50 dark:bg-green-950/10" : ""}`}
                 >
                   <RadioGroupItem value={option.id} id={option.id} />
-                  <Label htmlFor={option.id} className="flex-1 cursor-pointer">
+                  <Label htmlFor={option.id} className="flex-1 cursor-pointer truncate" title={option.text}>
                     {option.text}
                   </Label>
-                  {showResult && option.isCorrect && <CheckIcon className="h-5 w-5 text-green-500" />}
+                  {showResult && option.isCorrect && <CheckIcon className="h-5 w-5 text-green-500 flex-shrink-0" />}
                   {showResult && option.id === selectedAnswer && !option.isCorrect && (
-                    <XIcon className="h-5 w-5 text-red-500" />
+                    <XIcon className="h-5 w-5 text-red-500 flex-shrink-0" />
                   )}
                 </div>
               ))}
