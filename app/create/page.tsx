@@ -8,10 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { SearchResults } from "@/components/search-results"
 import { QuizPreview } from "@/components/quiz-preview"
 import { SearchIcon, SaveIcon, TrashIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { DeezerSearch } from "@/components/DeezerSearch"
 
 export default function CreateQuiz() {
   const { toast } = useToast()
@@ -123,7 +123,7 @@ export default function CreateQuiz() {
                     </Button>
                   </form>
 
-                  <SearchResults
+                  <DeezerSearch
                     query={searchQuery}
                     onAddTrack={(track) => setSelectedTracks([...selectedTracks, track])}
                   />
