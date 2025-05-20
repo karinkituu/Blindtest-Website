@@ -1,13 +1,41 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
-import { MusicIcon, PlusCircleIcon, PlayCircleIcon, HomeIcon } from "lucide-react"
+import { MusicIcon, PlusCircleIcon, PlayCircleIcon, HomeIcon, LogOutIcon } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
 
 export function Navbar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const { toast } = useToast()
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch("/api/auth/logout", {
+        method: "POST",
+      })
+
+      if (!res.ok) {
+        throw new Error("Erreur lors de la déconnexion")
+      }
+
+      toast({
+        title: "Déconnexion réussie",
+        description: "Vous avez été déconnecté avec succès",
+      })
+
+      router.push("/login")
+    } catch (error: any) {
+      toast({
+        title: "Erreur de déconnexion",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -38,6 +66,15 @@ export function Navbar() {
         </nav>
         <div className="flex items-center gap-2">
           <ModeToggle />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+          >
+            <LogOutIcon className="h-5 w-5" />
+            <span className="sr-only">Se déconnecter</span>
+          </Button>
           <div className="block md:hidden">
             <Button variant="ghost" size="icon" asChild>
               <Link href="/">
