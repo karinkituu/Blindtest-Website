@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,11 +15,13 @@ import { useToast } from "@/hooks/use-toast"
 import { DeezerSearch } from "@/components/DeezerSearch"
 
 export default function CreateQuiz() {
+  const router = useRouter()
   const { toast } = useToast()
   const [quizTitle, setQuizTitle] = useState("")
   const [quizDescription, setQuizDescription] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedTracks, setSelectedTracks] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,20 +32,34 @@ export default function CreateQuiz() {
     setSelectedTracks(selectedTracks.filter((track) => track.id !== trackId))
   }
 
-  const handleSaveQuiz = () => {
-    if (quizTitle && selectedTracks.length > 0) {
-      const quiz = {
-        id: Date.now().toString(),
-        title: quizTitle,
-        description: quizDescription,
-        tracks: selectedTracks,
-        createdAt: new Date().toISOString(),
-      }
+  const handleSaveQuiz = async () => {
+    if (!quizTitle || selectedTracks.length === 0) {
+      toast({
+        title: "Impossible de sauvegarder",
+        description: "Veuillez ajouter un titre et au moins une chanson à votre quiz.",
+        variant: "destructive",
+      })
+      return
+    }
 
-      // Sauvegarder dans localStorage
-      const savedQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]")
-      savedQuizzes.push(quiz)
-      localStorage.setItem("quizzes", JSON.stringify(savedQuizzes))
+    setLoading(true)
+
+    try {
+      const response = await fetch("/api/quizzes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: quizTitle,
+          description: quizDescription,
+          tracks: selectedTracks,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la création du quiz")
+      }
 
       // Réinitialiser le formulaire
       setQuizTitle("")
@@ -54,12 +71,17 @@ export default function CreateQuiz() {
         title: "Quiz sauvegardé",
         description: "Votre quiz a été créé avec succès!",
       })
-    } else {
+
+      // Rediriger vers la page des quiz
+      router.push("/quizzes")
+    } catch (error) {
       toast({
-        title: "Impossible de sauvegarder",
-        description: "Veuillez ajouter un titre et au moins une chanson à votre quiz.",
+        title: "Erreur",
+        description: "Une erreur est survenue lors de la création du quiz",
         variant: "destructive",
       })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -125,7 +147,11 @@ export default function CreateQuiz() {
 
                   <DeezerSearch
                     query={searchQuery}
-                    onAddTrack={(track) => setSelectedTracks([...selectedTracks, track])}
+                    onAddTrack={(track) => {
+                      if (!selectedTracks.some((t) => t.id === track.id)) {
+                        setSelectedTracks([...selectedTracks, track])
+                      }
+                    }}
                   />
                 </CardContent>
               </Card>
@@ -187,9 +213,13 @@ export default function CreateQuiz() {
               />
             </CardContent>
             <CardFooter>
-              <Button onClick={handleSaveQuiz} className="w-full" disabled={!quizTitle || selectedTracks.length === 0}>
+              <Button 
+                onClick={handleSaveQuiz} 
+                className="w-full" 
+                disabled={!quizTitle || selectedTracks.length === 0 || loading}
+              >
                 <SaveIcon className="h-4 w-4 mr-2" />
-                Sauvegarder le Quiz
+                {loading ? "Sauvegarde..." : "Sauvegarder le Quiz"}
               </Button>
             </CardFooter>
           </Card>

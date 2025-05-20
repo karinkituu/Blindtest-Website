@@ -1,84 +1,67 @@
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import jwt from "jsonwebtoken"
+import { jwtVerify } from "jose"
 import connectDB from "@/lib/mongodb"
 import Quiz from "@/models/Quiz"
 
-const JWT_SECRET = process.env.JWT_SECRET || "votre_secret_jwt_super_securise"
-
-// Récupérer les quiz de l'utilisateur
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get("token")?.value
+    const token = request.headers.get("cookie")?.split("token=")[1]?.split(";")[0]
 
     if (!token) {
-      return NextResponse.json(
-        { message: "Non autorisé" },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    // Vérifier le token
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string }
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "quizspot_jwt_secret_key_2024")
+    const { payload } = await jwtVerify(token, secret)
+    const userId = payload.userId
 
     await connectDB()
-
-    // Récupérer les quiz de l'utilisateur
-    const quizzes = await Quiz.find({ userId: payload.userId })
-      .sort({ createdAt: -1 })
-      .lean()
+    const quizzes = await Quiz.find({ userId }).sort({ createdAt: -1 })
 
     return NextResponse.json(quizzes)
   } catch (error) {
-    console.error("Erreur lors de la récupération des quiz:", error)
+    console.error("Error fetching quizzes:", error)
     return NextResponse.json(
-      { message: "Une erreur est survenue" },
+      { error: "Erreur lors de la récupération des quiz" },
       { status: 500 }
     )
   }
 }
 
-// Créer un nouveau quiz
-export async function POST(req: Request) {
+export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get("token")?.value
+    const token = request.headers.get("cookie")?.split("token=")[1]?.split(";")[0]
 
     if (!token) {
-      return NextResponse.json(
-        { message: "Non autorisé" },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    // Vérifier le token
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: string }
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET || "quizspot_jwt_secret_key_2024")
+    const { payload } = await jwtVerify(token, secret)
+    const userId = payload.userId
 
-    const { title, description, tracks } = await req.json()
+    const { title, description, tracks } = await request.json()
 
     if (!title || !tracks || tracks.length === 0) {
       return NextResponse.json(
-        { message: "Titre et pistes requis" },
+        { error: "Titre et chansons requis" },
         { status: 400 }
       )
     }
 
     await connectDB()
-
-    // Créer le nouveau quiz
     const quiz = await Quiz.create({
       title,
       description,
       tracks,
-      userId: payload.userId,
+      userId,
     })
 
-    return NextResponse.json(quiz, { status: 201 })
+    return NextResponse.json(quiz)
   } catch (error) {
-    console.error("Erreur lors de la création du quiz:", error)
+    console.error("Error creating quiz:", error)
     return NextResponse.json(
-      { message: "Une erreur est survenue" },
+      { error: "Erreur lors de la création du quiz" },
       { status: 500 }
     )
   }

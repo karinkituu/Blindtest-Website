@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { MusicIcon, PlayIcon, PlusCircleIcon, SearchIcon, MoreHorizontalIcon } from "lucide-react"
+import { PlayIcon, PlusIcon, SearchIcon, TrashIcon } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,168 +16,180 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
-type Quiz = {
+interface Track {
   id: string
+  name: string
+  artist: string
+  album: string
+  image: string
+  preview: string
+}
+
+interface Quiz {
+  _id: string
   title: string
   description: string
-  tracks: any[]
+  tracks: Track[]
   createdAt: string
 }
 
 export default function QuizzesPage() {
+  const router = useRouter()
+  const { toast } = useToast()
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [quizToDelete, setQuizToDelete] = useState<Quiz | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    // Charger les quiz depuis le localStorage
-    const savedQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]")
-    setQuizzes(savedQuizzes)
-  }, [])
-
-  const filteredQuizzes = quizzes.filter((quiz) => quiz.title.toLowerCase().includes(searchQuery.toLowerCase()))
-
-  const handleDeleteQuiz = (quiz: Quiz) => {
-    setQuizToDelete(quiz)
+  const fetchQuizzes = async () => {
+    try {
+      const response = await fetch("/api/quizzes")
+      if (!response.ok) {
+        throw new Error("Erreur lors de la récupération des quiz")
+      }
+      const data = await response.json()
+      setQuizzes(data)
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les quiz",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const confirmDelete = () => {
-    if (quizToDelete) {
-      const updatedQuizzes = quizzes.filter((quiz) => quiz.id !== quizToDelete.id)
-      setQuizzes(updatedQuizzes)
-      localStorage.setItem("quizzes", JSON.stringify(updatedQuizzes))
-      setQuizToDelete(null)
+  useEffect(() => {
+    fetchQuizzes()
+  }, [])
+
+  const handleDeleteQuiz = async (quizId: string) => {
+    try {
+      const response = await fetch(`/api/quizzes/${quizId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la suppression du quiz")
+      }
+
+      setQuizzes(quizzes.filter((quiz) => quiz._id !== quizId))
+      toast({
+        title: "Quiz supprimé",
+        description: "Le quiz a été supprimé avec succès",
+      })
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer le quiz",
+        variant: "destructive",
+      })
     }
+  }
+
+  const filteredQuizzes = quizzes.filter((quiz) =>
+    quiz.title.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">Mes Quiz</h1>
-          <p className="text-muted-foreground">Jouez à vos quiz ou créez-en de nouveaux</p>
-        </div>
-
-        <div className="flex gap-2 w-full md:w-auto">
-          <div className="relative flex-1 md:w-64">
-            <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Rechercher un quiz..."
-              className="pl-8"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <Link href="/create">
-            <Button>
-              <PlusCircleIcon className="h-4 w-4 mr-2" />
-              Nouveau Quiz
-            </Button>
-          </Link>
-        </div>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Mes Quiz</h1>
+        <Button onClick={() => router.push("/create")}>
+          <PlusIcon className="h-4 w-4 mr-2" />
+          Créer un Quiz
+        </Button>
       </div>
 
-      {quizzes.length === 0 ? (
-        <Card className="text-center p-8">
-          <CardContent className="pt-8 pb-4">
-            <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <MusicIcon className="h-6 w-6 text-primary" />
-            </div>
-            <h2 className="text-xl font-semibold mb-2">Aucun quiz créé</h2>
-            <p className="text-muted-foreground mb-6">
-              Vous n'avez pas encore créé de quiz. Commencez dès maintenant !
-            </p>
-            <Link href="/create">
-              <Button>
-                <PlusCircleIcon className="h-4 w-4 mr-2" />
-                Créer mon premier Quiz
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      ) : filteredQuizzes.length === 0 ? (
+      <div className="relative mb-8">
+        <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+        <Input
+          placeholder="Rechercher un quiz..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10"
+        />
+      </div>
+
+      {filteredQuizzes.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Aucun quiz ne correspond à votre recherche.</p>
+          <h2 className="text-xl font-semibold mb-2">Aucun quiz trouvé</h2>
+          <p className="text-muted-foreground mb-4">
+            {searchQuery
+              ? "Aucun quiz ne correspond à votre recherche"
+              : "Commencez par créer votre premier quiz"}
+          </p>
+          {!searchQuery && (
+            <Button onClick={() => router.push("/create")}>
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Créer un Quiz
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredQuizzes.map((quiz) => (
-            <Card key={quiz.id} className="relative">
-              <div className="absolute top-2 right-2 z-10">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontalIcon className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem 
-                      className="text-destructive focus:text-destructive"
-                      onClick={() => handleDeleteQuiz(quiz)}
-                    >
-                      Supprimer
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <CardHeader className="pr-12">
-                <div className="min-w-0">
-                  <CardTitle className="truncate" title={quiz.title}>
-                    {quiz.title}
-                  </CardTitle>
-                  <CardDescription className="truncate" title={quiz.description || "Pas de description"}>
-                    {quiz.description || "Pas de description"}
-                  </CardDescription>
-                </div>
+            <Card key={quiz._id} className="flex flex-col">
+              <CardHeader>
+                <CardTitle>{quiz.title}</CardTitle>
+                <CardDescription>
+                  {quiz.tracks.length} chanson{quiz.tracks.length > 1 ? "s" : ""}
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm">
-                  <MusicIcon className="h-4 w-4 flex-shrink-0" />
-                  <span>
-                    {quiz.tracks.length} chanson{quiz.tracks.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
-                <div className="mt-2 text-sm text-muted-foreground">
-                  Créé le {new Date(quiz.createdAt).toLocaleDateString()}
-                </div>
+              <CardContent className="flex-grow">
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {quiz.description || "Aucune description"}
+                </p>
               </CardContent>
-              <CardFooter>
-                <Link href={`/play/${quiz.id}`} className="w-full">
-                  <Button className="w-full">
-                    <PlayIcon className="h-4 w-4 mr-2" />
-                    Jouer
-                  </Button>
-                </Link>
+              <CardFooter className="flex justify-between">
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(`/play/${quiz._id}`)}
+                >
+                  <PlayIcon className="h-4 w-4 mr-2" />
+                  Jouer
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="icon">
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Supprimer le quiz</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Êtes-vous sûr de vouloir supprimer ce quiz ? Cette action est irréversible.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Annuler</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDeleteQuiz(quiz._id)}
+                      >
+                        Supprimer
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </CardFooter>
             </Card>
           ))}
         </div>
       )}
-
-      <AlertDialog open={!!quizToDelete} onOpenChange={() => setQuizToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Êtes-vous sûr de vouloir supprimer ce quiz ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est irréversible. Le quiz "<span className="truncate inline-block max-w-[200px] align-bottom" title={quizToDelete?.title}>{quizToDelete?.title}</span>" sera définitivement supprimé.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Supprimer
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
