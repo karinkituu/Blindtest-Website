@@ -5,14 +5,31 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Navbar } from "@/components/navbar"
 import { SpotifyProvider } from "@/components/spotify-provider"
 import { Toaster } from "@/components/toaster"
+import type { Metadata } from "next"
 // Nous gardons le même nom de composant pour éviter de changer toutes les références
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
-  title: "Quiz Musical",
-  description: "Créez et partagez des quiz musicaux avec vos amis",
-    generator: 'v0.dev'
+export const metadata: Metadata = {
+  title: "Quizspot",
+  description: "Créez et jouez à des quiz musicaux",
+  manifest: "/manifest.json",
+  themeColor: "#000000",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Quizspot",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
+  icons: {
+    icon: "/icons/icon-192x192.png",
+    shortcut: "/icons/icon-192x192.png",
+    apple: "/icons/icon-192x192.png",
+  },
 }
 
 export default function RootLayout({

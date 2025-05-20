@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { MusicIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon, XIcon } from "lucide-react"
+import { use } from "react"
 
 type Quiz = {
   id: string
@@ -17,8 +18,9 @@ type Quiz = {
   createdAt: string
 }
 
-export default function PlayQuiz({ params }: { params: { id: string } }) {
+export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
+  const { id } = use(params)
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -33,7 +35,7 @@ export default function PlayQuiz({ params }: { params: { id: string } }) {
   useEffect(() => {
     // Charger le quiz depuis le localStorage
     const savedQuizzes = JSON.parse(localStorage.getItem("quizzes") || "[]")
-    const foundQuiz = savedQuizzes.find((q: Quiz) => q.id === params.id)
+    const foundQuiz = savedQuizzes.find((q: Quiz) => q.id === id)
 
     if (foundQuiz) {
       setQuiz(foundQuiz)
@@ -42,7 +44,7 @@ export default function PlayQuiz({ params }: { params: { id: string } }) {
     }
 
     setLoading(false)
-  }, [params.id, router])
+  }, [id, router])
 
   useEffect(() => {
     // Générer les options pour la question actuelle
@@ -59,6 +61,17 @@ export default function PlayQuiz({ params }: { params: { id: string } }) {
     }
   }, [quiz, currentQuestion])
 
+  // Nettoyer l'audio quand on quitte le quiz
+  useEffect(() => {
+    return () => {
+      if (audio) {
+        audio.pause()
+        audio.src = ""
+        audio.load()
+      }
+    }
+  }, [audio])
+
   const generateOptions = () => {
     if (!quiz) return
 
@@ -73,10 +86,10 @@ export default function PlayQuiz({ params }: { params: { id: string } }) {
 
     // Créer les options
     const allOptions = [
-      { id: "correct", text: correctTrack.name, isCorrect: true },
+      { id: "correct", text: correctTrack.title, isCorrect: true },
       ...shuffledTracks.map((track, index) => ({
         id: `wrong-${index}`,
-        text: track.name,
+        text: track.title,
         isCorrect: false,
       })),
     ]
@@ -85,8 +98,8 @@ export default function PlayQuiz({ params }: { params: { id: string } }) {
     setOptions(allOptions.sort(() => 0.5 - Math.random()))
 
     // Charger l'audio si disponible
-    if (correctTrack.preview_url) {
-      const newAudio = new Audio(correctTrack.preview_url)
+    if (correctTrack.preview) {
+      const newAudio = new Audio(correctTrack.preview)
       setAudio(newAudio)
       newAudio.volume = 0.5
       newAudio.play().catch((e) => console.error("Erreur de lecture audio:", e))
@@ -229,11 +242,11 @@ export default function PlayQuiz({ params }: { params: { id: string } }) {
                   />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {currentTrack.preview_url
+                  {currentTrack.preview
                     ? "Écoutez l'extrait et devinez la chanson"
                     : "Aucun extrait disponible pour cette chanson"}
                 </p>
-                {currentTrack.preview_url && (
+                {currentTrack.preview && (
                   <Button
                     variant="outline"
                     size="sm"
