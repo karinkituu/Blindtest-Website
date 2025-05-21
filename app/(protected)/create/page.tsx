@@ -174,11 +174,11 @@ export default function CreateQuiz() {
                           <div className="flex items-center gap-3">
                             <img
                               src={track.image || "/placeholder.svg?height=40&width=40"}
-                              alt={track.name}
+                              alt={track.title}
                               className="w-10 h-10 rounded"
                             />
                             <div>
-                              <p className="font-medium">{track.name}</p>
+                              <p className="font-medium">{track.title}</p>
                               <p className="text-sm text-muted-foreground">
                                 {track.artist} • {track.album}
                               </p>

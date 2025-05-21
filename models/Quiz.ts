@@ -13,8 +13,10 @@ const quizSchema = new mongoose.Schema({
     id: String,
     title: String,
     artist: String,
+    album: String,
     image: String,
     preview: String,
+    deezerId: String,
   }],
   userId: {
     type: mongoose.Schema.Types.ObjectId,

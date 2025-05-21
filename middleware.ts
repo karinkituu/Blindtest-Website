@@ -1,93 +1,104 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextResponse, NextRequest } from "next/server"
 import { jwtVerify } from "jose"
 
-const JWT_SECRET = process.env.JWT_SECRET
-const secret = new TextEncoder().encode(JWT_SECRET)
-
-// Routes protégées qui nécessitent une authentification
+// Routes qui nécessitent une authentification
 const protectedRoutes = ["/quizzes", "/create", "/play"]
 
+// Routes d'authentification
+const authRoutes = ["/login", "/signup"]
+
+// Secret JWT
+const JWT_SECRET = process.env.JWT_SECRET || "quizspot_jwt_secret_key_2024"
+
 export async function middleware(request: NextRequest) {
-  const token = request.cookies.get("token")?.value
-  const { pathname } = request.nextUrl
-
-  console.log("Middleware - Pathname:", pathname)
-  console.log("Middleware - Token présent:", !!token)
-  if (token) {
-    console.log("Middleware - Token:", token)
-  }
-
-  // Vérifier si la route actuelle nécessite une authentification
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    pathname.startsWith(route)
-  )
-
-  // Si l'utilisateur est connecté et essaie d'accéder aux pages de connexion/inscription,
-  // le rediriger vers la page des quiz
-  if (token && (pathname === "/login" || pathname === "/signup")) {
-    try {
-      const { payload } = await jwtVerify(token, secret)
-      console.log("Middleware - Token valide, userId:", payload.userId)
-      return NextResponse.redirect(new URL("/quizzes", request.url))
-    } catch (error) {
-      console.log("Middleware - Token invalide, erreur:", error)
-      // Si le token est invalide, supprimer le cookie et continuer
-      const response = NextResponse.next()
-      response.cookies.delete("token")
-      return response
+  const path = request.nextUrl.pathname
+  console.log("Middleware - Pathname:", path)
+  
+  try {
+    // 1. Vérifier si l'utilisateur a un token
+    const token = request.cookies.get("token")?.value
+    console.log("Middleware - Token présent:", !!token)
+    
+    // Pour le débogage uniquement, ne pas laisser en production
+    if (token) {
+      console.log("Middleware - Token:", token)
     }
-  }
 
-  // Si la route est protégée et qu'il n'y a pas de token, rediriger vers la page de connexion
-  if (isProtectedRoute && !token) {
-    console.log("Middleware - Route protégée sans token, redirection vers /login")
-    return NextResponse.redirect(new URL("/login", request.url))
-  }
-
-  // Si la route est protégée et qu'il y a un token, vérifier sa validité
-  if (isProtectedRoute && token) {
-    try {
-      const { payload } = await jwtVerify(token, secret)
-      console.log("Middleware - Token valide pour route protégée, userId:", payload.userId)
+    // 2. Si c'est une route d'authentification (login/signup)
+    if (authRoutes.some(route => path.startsWith(route))) {
+      // Si l'utilisateur est connecté, rediriger vers /quizzes
+      if (token) {
+        try {
+          const secret = new TextEncoder().encode(JWT_SECRET)
+          const { payload } = await jwtVerify(token, secret)
+          console.log("Middleware - Token valide pour route auth, userId:", payload.userId)
+          
+          // L'utilisateur est connecté, rediriger vers /quizzes
+          return NextResponse.redirect(new URL("/quizzes", request.url))
+        } catch (error) {
+          console.error("Middleware - Token invalide sur route auth:", error)
+          
+          // Le token est invalide, supprimer le cookie et continuer
+          const response = NextResponse.next()
+          response.cookies.delete("token")
+          return response
+        }
+      }
       
-      // Créer une nouvelle réponse pour continuer
-      const response = NextResponse.next()
-      
-      // Renouveler le cookie pour maintenir la session
-      response.cookies.set({
-        name: "token",
-        value: token,
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60, // 7 jours
-        path: "/",
-        domain: process.env.NODE_ENV === "production" ? undefined : "localhost"
-      })
-      
-      return response
-    } catch (error) {
-      console.log("Middleware - Token invalide pour route protégée, erreur:", error)
-      // Si le token est invalide, supprimer le cookie et rediriger vers la page de connexion
-      const response = NextResponse.redirect(new URL("/login", request.url))
-      response.cookies.delete("token")
-      return response
+      // L'utilisateur n'est pas connecté, laisser accéder à login/signup
+      return NextResponse.next()
     }
+    
+    // 3. Si c'est une route protégée
+    if (protectedRoutes.some(route => path.startsWith(route))) {
+      // Si l'utilisateur n'est pas connecté, rediriger vers /login
+      if (!token) {
+        console.log("Middleware - Pas de token sur route protégée, redirection vers login")
+        return NextResponse.redirect(new URL("/login", request.url))
+      }
+      
+      try {
+        const secret = new TextEncoder().encode(JWT_SECRET)
+        const { payload } = await jwtVerify(token, secret)
+        console.log("Middleware - Token valide pour route protégée, userId:", payload.userId)
+        
+        // L'utilisateur est connecté, laisser passer
+        // Bonus: renouveler le token si nécessaire
+        const response = NextResponse.next()
+        return response
+      } catch (error) {
+        console.error("Middleware - Token invalide sur route protégée:", error)
+        
+        // Le token est invalide, supprimer le cookie et rediriger vers /login
+        const response = NextResponse.redirect(new URL("/login", request.url))
+        response.cookies.delete("token")
+        return response
+      }
+    }
+    
+    // 4. Pour toutes les autres routes, laisser passer
+    return NextResponse.next()
+  } catch (error) {
+    console.error("Middleware - Erreur inattendue:", error)
+    
+    // En cas d'erreur inattendue, rediriger vers la page d'accueil
+    // On pourrait aussi rediriger vers une page d'erreur
+    return NextResponse.redirect(new URL("/", request.url))
   }
-
-  return NextResponse.next()
 }
 
+// Ne pas appliquer le middleware aux chemins suivants
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * Match all request paths except for:
+     * 1. /api routes
+     * 2. /_next/static (static files)
+     * 3. /_next/image (image optimization files)
+     * 4. /favicon.ico (favicon file)
+     * 5. /icons (PWA icons)
+     * 6. /manifest.json (PWA manifest)
      */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    '/((?!api/|_next/static|_next/image|favicon.ico|icons/|manifest.json).*)',
   ],
 } 

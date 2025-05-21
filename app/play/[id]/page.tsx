@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { MusicIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon, XIcon } from "lucide-react"
+import { MusicIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon, XIcon, AlertTriangleIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 
@@ -18,6 +18,7 @@ interface Track {
   album: string
   image: string
   preview: string
+  deezerId?: string  // Ajout de l'identifiant Deezer (optionnel pour la rétrocompatibilité)
 }
 
 interface Quiz {
@@ -43,6 +44,8 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
   const [options, setOptions] = useState<{ id: string; text: string; isCorrect: boolean }[]>([])
   const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string | null>(null)
   const [dataInitialized, setDataInitialized] = useState(false)
+  const [trackLoadError, setTrackLoadError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   
   // Utiliser useRef au lieu de useState pour l'élément audio
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -59,7 +62,6 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
         const data = await response.json()
         console.log("Quiz data:", data)
         setQuiz(data)
-        // Ne pas marquer comme initialisé ici, attendez que le reste soit fait
       } catch (error) {
         console.error("Error fetching quiz:", error)
         toast({
@@ -85,6 +87,69 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
     }
   }, [id, router, toast])
 
+  // Récupérer les informations à jour d'une piste Deezer
+  const fetchTrackInfo = async (track: Track): Promise<Track> => {
+    try {
+      console.log("Fetching updated track info for:", track.title, track.artist)
+      
+      // Utiliser d'abord l'ID Deezer si disponible
+      if (track.deezerId) {
+        try {
+          console.log("Using Deezer ID:", track.deezerId)
+          const response = await fetch(`/api/deezer/track?id=${track.deezerId}`)
+          
+          if (response.ok) {
+            const updatedTrack = await response.json()
+            console.log("Updated track info via ID:", updatedTrack)
+            
+            if (updatedTrack.preview) {
+              return {
+                ...track,
+                preview: updatedTrack.preview,
+                image: updatedTrack.image || track.image
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching track via ID, falling back to search:", error)
+        }
+      }
+      
+      // Essayer de rechercher par métadonnées si l'ID ne fonctionne pas ou n'est pas disponible
+      console.log("Searching track by metadata")
+      const searchParams = new URLSearchParams({
+        title: track.title,
+        artist: track.artist
+      })
+      
+      if (track.album) {
+        searchParams.append('album', track.album)
+      }
+      
+      const response = await fetch(`/api/deezer/search-track?${searchParams.toString()}`)
+      
+      if (!response.ok) {
+        throw new Error("Impossible de récupérer les informations de la piste")
+      }
+      
+      const updatedTrack = await response.json()
+      console.log("Found track via search:", updatedTrack)
+      
+      // Retourner une piste avec les informations mises à jour
+      return {
+        ...track,
+        preview: updatedTrack.preview,
+        image: updatedTrack.image || track.image,
+        // Mettre à jour l'ID Deezer pour les futures recherches
+        deezerId: updatedTrack.id
+      }
+    } catch (error) {
+      console.error("Error fetching track info:", error)
+      // En cas d'erreur, on conserve la piste originale
+      return track
+    }
+  }
+
   // Initialisation des données après le chargement du quiz
   useEffect(() => {
     if (quiz && quiz.tracks.length > 0 && !dataInitialized) {
@@ -99,34 +164,58 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
       const correctTrack = quiz.tracks[0] // Première piste
       console.log("First track:", correctTrack)
       
-      // Créer un tableau de toutes les pistes sauf la correcte
-      const otherTracks = [...quiz.tracks].filter((track) => track.id !== correctTrack.id)
-      
-      // Mélanger et prendre 3 pistes aléatoires
-      const shuffledTracks = otherTracks.sort(() => 0.5 - Math.random()).slice(0, 3)
-      
-      // Créer les options
-      const allOptions = [
-        { id: "correct", text: correctTrack.title, isCorrect: true },
-        ...shuffledTracks.map((track, index) => ({
-          id: `wrong-${index}`,
-          text: track.title,
-          isCorrect: false,
-        })),
-      ]
-      
-      // Mélanger les options
-      const randomizedOptions = allOptions.sort(() => 0.5 - Math.random())
-      console.log("Initial options:", randomizedOptions)
-      setOptions(randomizedOptions)
-      
-      // Mettre à jour l'URL du preview
-      console.log("Setting preview URL:", correctTrack.preview || "No preview available")
-      setCurrentPreviewUrl(correctTrack.preview || null)
-      
-      setDataInitialized(true)
+      // Récupérer les informations à jour de la piste
+      setTrackLoadError(false)
+      fetchTrackInfo(correctTrack)
+        .then(updatedTrack => {
+          // Créer un tableau de toutes les pistes sauf la correcte
+          const otherTracks = [...quiz.tracks].filter((track) => track.id !== correctTrack.id)
+          
+          // Mélanger et prendre 3 pistes aléatoires
+          const shuffledTracks = otherTracks.sort(() => 0.5 - Math.random()).slice(0, 3)
+          
+          // Créer les options
+          const allOptions = [
+            { id: "correct", text: updatedTrack.title, isCorrect: true },
+            ...shuffledTracks.map((track, index) => ({
+              id: `wrong-${index}`,
+              text: track.title,
+              isCorrect: false,
+            })),
+          ]
+          
+          // Mélanger les options
+          const randomizedOptions = allOptions.sort(() => 0.5 - Math.random())
+          console.log("Initial options:", randomizedOptions)
+          setOptions(randomizedOptions)
+          
+          // Mettre à jour l'URL du preview
+          console.log("Setting preview URL:", updatedTrack.preview || "No preview available")
+          setCurrentPreviewUrl(updatedTrack.preview || null)
+          
+          if (!updatedTrack.preview) {
+            setTrackLoadError(true)
+            toast({
+              title: "Problème de lecture",
+              description: "L'audio de cette piste n'est pas disponible.",
+              variant: "destructive",
+            })
+          }
+          
+          setDataInitialized(true)
+        })
+        .catch(error => {
+          console.error("Error initializing track data:", error)
+          setTrackLoadError(true)
+          toast({
+            title: "Erreur",
+            description: "Impossible de charger l'audio du quiz",
+            variant: "destructive",
+          })
+          setDataInitialized(true)
+        })
     }
-  }, [quiz, dataInitialized])
+  }, [quiz, dataInitialized, toast])
 
   // Gérer le changement de question
   useEffect(() => {
@@ -140,21 +229,47 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
         audioRef.current.src = ""
       }
       
-      generateOptions()
-      
-      // Mettre à jour l'URL du preview
+      // Obtenir la piste correcte
       const correctTrack = quiz.tracks[currentQuestion]
-      console.log("Setting preview URL for new question:", correctTrack.preview || "No preview available")
-      setCurrentPreviewUrl(correctTrack.preview || null)
+      setTrackLoadError(false)
+      
+      // Récupérer les informations à jour de la piste
+      fetchTrackInfo(correctTrack)
+        .then(updatedTrack => {
+          // Générer les options
+          generateOptions(updatedTrack)
+          
+          // Mettre à jour l'URL du preview
+          console.log("Setting preview URL for new question:", updatedTrack.preview || "No preview available")
+          setCurrentPreviewUrl(updatedTrack.preview || null)
+          
+          if (!updatedTrack.preview) {
+            setTrackLoadError(true)
+            toast({
+              title: "Problème de lecture",
+              description: "L'audio de cette piste n'est pas disponible.",
+              variant: "destructive",
+            })
+          }
+        })
+        .catch(error => {
+          console.error("Error updating track data:", error)
+          setTrackLoadError(true)
+          generateOptions(correctTrack)
+          setCurrentPreviewUrl(null)
+          toast({
+            title: "Erreur",
+            description: "Impossible de charger l'audio de cette question",
+            variant: "destructive",
+          })
+        })
     }
-  }, [quiz, currentQuestion, dataInitialized])
+  }, [quiz, currentQuestion, dataInitialized, toast])
 
-  const generateOptions = () => {
+  const generateOptions = (correctTrack: Track) => {
     if (!quiz) return
 
     console.log("Generating options for question", currentQuestion)
-    // Obtenir la piste correcte
-    const correctTrack = quiz.tracks[currentQuestion]
     console.log("Correct track:", correctTrack)
 
     // Créer un tableau de toutes les pistes sauf la correcte
@@ -185,6 +300,13 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
       audioRef.current.pause()
     }
     
+    // Si l'utilisateur a passé la question
+    if (selectedAnswer === "skip") {
+      setShowResult(true)
+      setIsCorrect(false)
+      return;
+    }
+    
     // Trouver l'option sélectionnée
     const selectedOption = options.find((option) => option.id === selectedAnswer)
     const correct = selectedOption?.isCorrect || false
@@ -205,6 +327,55 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
       setCurrentQuestion(currentQuestion + 1)
     } else {
       setGameOver(true)
+    }
+  }
+
+  // Fonction pour réessayer de charger l'audio
+  const retryLoadTrack = () => {
+    if (quiz && currentQuestion < quiz.tracks.length) {
+      setRetryCount(retryCount + 1)
+      setTrackLoadError(false)
+      
+      const currentTrack = quiz.tracks[currentQuestion]
+      toast({
+        title: "Nouvelle tentative",
+        description: "Tentative de récupération de l'audio...",
+      })
+      
+      fetchTrackInfo(currentTrack)
+        .then(updatedTrack => {
+          console.log("Retrying track load:", updatedTrack)
+          setCurrentPreviewUrl(updatedTrack.preview || null)
+          
+          if (!updatedTrack.preview) {
+            setTrackLoadError(true)
+            
+            // Après 2 tentatives, suggérer de passer à la question suivante
+            if (retryCount >= 1) {
+              toast({
+                title: "Audio non disponible",
+                description: "Cette piste n'est pas disponible actuellement. Vous pouvez passer à la question suivante.",
+                variant: "destructive",
+                duration: 5000,
+              })
+            } else {
+              toast({
+                title: "Problème de lecture",
+                description: "L'audio de cette piste n'est pas disponible, même après nouvelle tentative.",
+                variant: "destructive",
+              })
+            }
+          }
+        })
+        .catch(error => {
+          console.error("Error retrying track load:", error)
+          setTrackLoadError(true)
+          toast({
+            title: "Erreur",
+            description: "Impossible de charger l'audio de cette question",
+            variant: "destructive",
+          })
+        })
     }
   }
 
@@ -321,17 +492,42 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
                 </div>
               )}
               
-              {currentPreviewUrl && (
+              {trackLoadError ? (
+                <div className="flex flex-col items-center gap-3 text-amber-500">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangleIcon className="h-5 w-5" />
+                    <span>L'audio n'est pas disponible pour cette piste</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={retryLoadTrack}>
+                      Réessayer
+                    </Button>
+                    {retryCount >= 1 && !showResult && (
+                      <Button variant="outline" size="sm" onClick={() => {
+                        setSelectedAnswer("skip")
+                        handleAnswer()
+                      }}>
+                        Passer cette question
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : currentPreviewUrl ? (
                 <div className="w-full">
                   <audio 
                     ref={audioRef}
-                    src={currentPreviewUrl} 
+                    src={currentPreviewUrl || undefined} 
                     controls 
                     className="w-full max-w-xs" 
                     controlsList="nodownload"
                     preload="auto"
                     key={currentPreviewUrl} // Forcer la recréation du composant audio
                   />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-amber-500">
+                  <AlertTriangleIcon className="h-5 w-5" />
+                  <span>L'audio n'est pas disponible pour cette piste</span>
                 </div>
               )}
             </div>

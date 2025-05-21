@@ -11,6 +11,7 @@ type Track = {
   album: string
   image: string
   preview: string
+  deezerId: string
 }
 
 type SearchResultsProps = {
@@ -41,6 +42,7 @@ export function DeezerSearch({ query, onAddTrack }: SearchResultsProps) {
         if (data.data && Array.isArray(data.data)) {
           const formattedResults = data.data.map((track: any) => ({
             id: track.id.toString(),
+            deezerId: track.id.toString(),
             title: track.title,
             artist: track.artist.name,
             album: track.album.title,
