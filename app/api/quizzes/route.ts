@@ -41,8 +41,27 @@ export async function GET(request: Request) {
       // Récupérer les quizzes de l'utilisateur
       try {
         console.log("Fetching quizzes for user:", userId)
-        const quizzes = await Quiz.find({ userId }).sort({ createdAt: -1 })
+        console.log("Type of userId:", typeof userId)
+        
+        let filter = { userId };
+        console.log("Filter:", JSON.stringify(filter));
+        
+        const quizzes = await Quiz.find(filter).sort({ createdAt: -1 })
         console.log(`Found ${quizzes.length} quizzes`)
+        
+        if (quizzes.length === 0) {
+          console.log("No quizzes found, checking all quizzes in the collection...")
+          const allQuizzes = await Quiz.find({}).limit(5);
+          console.log("Sample quizzes in collection:", 
+            allQuizzes.map(q => ({ 
+              id: q._id, 
+              title: q.title, 
+              userId: q.userId, 
+              userIdType: typeof q.userId 
+            }))
+          );
+        }
+        
         return NextResponse.json(quizzes)
       } catch (findError) {
         console.error("Error finding quizzes:", findError)

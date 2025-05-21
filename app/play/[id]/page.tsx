@@ -137,6 +137,12 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
     try {
       console.log("Fetching updated track info for:", track.title, track.artist)
       
+      // Si la piste a déjà une URL preview valide, la conserver sans appeler l'API
+      if (track.preview) {
+        console.log("Track already has preview URL, using existing:", track.preview);
+        return track;
+      }
+      
       // Utiliser d'abord l'ID Deezer si disponible
       if (track.deezerId) {
         try {
@@ -154,6 +160,8 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
                 image: updatedTrack.image || track.image
               }
             }
+          } else {
+            console.warn("Failed to fetch track by ID, status:", response.status);
           }
         } catch (error) {
           console.error("Error fetching track via ID, falling back to search:", error)
@@ -161,35 +169,43 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
       }
       
       // Essayer de rechercher par métadonnées si l'ID ne fonctionne pas ou n'est pas disponible
-      console.log("Searching track by metadata")
-      const searchParams = new URLSearchParams({
-        title: track.title,
-        artist: track.artist
-      })
-      
-      if (track.album) {
-        searchParams.append('album', track.album)
-      }
-      
-      const response = await fetch(`/api/deezer/search-track?${searchParams.toString()}`)
-      
-      if (!response.ok) {
-        throw new Error("Impossible de récupérer les informations de la piste")
-      }
-      
-      const updatedTrack = await response.json()
-      console.log("Found track via search:", updatedTrack)
-      
-      // Retourner une piste avec les informations mises à jour
-      return {
-        ...track,
-        preview: updatedTrack.preview,
-        image: updatedTrack.image || track.image,
-        // Mettre à jour l'ID Deezer pour les futures recherches
-        deezerId: updatedTrack.id
+      try {
+        console.log("Searching track by metadata")
+        const searchParams = new URLSearchParams({
+          title: track.title,
+          artist: track.artist
+        })
+        
+        if (track.album) {
+          searchParams.append('album', track.album)
+        }
+        
+        const response = await fetch(`/api/deezer/search-track?${searchParams.toString()}`)
+        
+        if (!response.ok) {
+          console.warn("Search failed with status:", response.status);
+          // Au lieu de lancer une erreur, retourner la piste originale
+          return track;
+        }
+        
+        const updatedTrack = await response.json()
+        console.log("Found track via search:", updatedTrack)
+        
+        // Retourner une piste avec les informations mises à jour
+        return {
+          ...track,
+          preview: updatedTrack.preview,
+          image: updatedTrack.image || track.image,
+          // Mettre à jour l'ID Deezer pour les futures recherches
+          deezerId: updatedTrack.id
+        }
+      } catch (searchError) {
+        console.error("Error searching for track:", searchError);
+        // Retourner la piste originale
+        return track;
       }
     } catch (error) {
-      console.error("Error fetching track info:", error)
+      console.error("Error in fetchTrackInfo:", error)
       // En cas d'erreur, on conserve la piste originale
       return track
     }
@@ -241,9 +257,9 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
           if (!updatedTrack.preview) {
             setTrackLoadError(true)
             toast({
-              title: "Problème de lecture",
-              description: "L'audio de cette piste n'est pas disponible.",
-              variant: "destructive",
+              title: "Information",
+              description: "L'audio de cette piste n'est pas disponible, mais vous pouvez quand même jouer.",
+              variant: "default",
             })
           }
           
@@ -252,11 +268,27 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
         .catch(error => {
           console.error("Error initializing track data:", error)
           setTrackLoadError(true)
+          
+          // Créer les options même s'il y a une erreur
+          const otherTracks = [...quiz.tracks].filter((track) => track.id !== correctTrack.id)
+          const shuffledTracks = otherTracks.sort(() => 0.5 - Math.random()).slice(0, 3)
+          const allOptions = [
+            { id: "correct", text: correctTrack.title, isCorrect: true },
+            ...shuffledTracks.map((track, index) => ({
+              id: `wrong-${index}`,
+              text: track.title,
+              isCorrect: false,
+            })),
+          ]
+          const randomizedOptions = allOptions.sort(() => 0.5 - Math.random())
+          setOptions(randomizedOptions)
+          
           toast({
-            title: "Erreur",
-            description: "Impossible de charger l'audio du quiz",
-            variant: "destructive",
+            title: "Information",
+            description: "L'audio n'est pas disponible, mais vous pouvez quand même jouer au quiz.",
+            variant: "default",
           })
+          
           setDataInitialized(true)
         })
     }
@@ -289,9 +321,9 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
           if (!updatedTrack.preview) {
             setTrackLoadError(true)
             toast({
-              title: "Problème de lecture",
-              description: "L'audio de cette piste n'est pas disponible.",
-              variant: "destructive",
+              title: "Information",
+              description: "L'audio de cette piste n'est pas disponible, mais vous pouvez quand même jouer.",
+              variant: "default",
             })
           }
         })
@@ -300,11 +332,6 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
           setTrackLoadError(true)
           generateOptions(correctTrack)
           setCurrentPreviewUrl(null)
-          toast({
-            title: "Erreur",
-            description: "Impossible de charger l'audio de cette question",
-            variant: "destructive",
-          })
         })
     }
   }, [quiz, currentQuestion, dataInitialized, toast])
@@ -395,30 +422,36 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
           if (!updatedTrack.preview) {
             setTrackLoadError(true)
             
-            // Après 2 tentatives, suggérer de passer à la question suivante
-            if (retryCount >= 1) {
+            // Après 1 tentative, suggérer de passer à la question suivante
+            if (retryCount >= 0) {
               toast({
                 title: "Audio non disponible",
-                description: "Cette piste n'est pas disponible actuellement. Vous pouvez passer à la question suivante.",
-                variant: "destructive",
+                description: "Cette piste n'est pas disponible. Vous pouvez répondre à la question ou passer à la suivante.",
+                variant: "default",
                 duration: 5000,
               })
             } else {
               toast({
-                title: "Problème de lecture",
-                description: "L'audio de cette piste n'est pas disponible, même après nouvelle tentative.",
-                variant: "destructive",
+                title: "Information",
+                description: "L'audio de cette piste n'est pas disponible, mais vous pouvez quand même jouer.",
+                variant: "default",
               })
             }
+          } else {
+            toast({
+              title: "Succès !",
+              description: "L'audio a été chargé avec succès.",
+              variant: "default",
+            })
           }
         })
         .catch(error => {
           console.error("Error retrying track load:", error)
           setTrackLoadError(true)
           toast({
-            title: "Erreur",
-            description: "Impossible de charger l'audio de cette question",
-            variant: "destructive",
+            title: "Information",
+            description: "L'audio n'est pas disponible, mais vous pouvez continuer à jouer.",
+            variant: "default",
           })
         })
     }

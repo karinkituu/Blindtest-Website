@@ -19,8 +19,7 @@ const quizSchema = new mongoose.Schema({
     deezerId: String,
   }],
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: String,
     required: true,
   },
   createdAt: {

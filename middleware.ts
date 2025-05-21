@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from "next/server"
 import { jwtVerify } from "jose"
 
 // Routes qui nécessitent une authentification
-const protectedRoutes = ["/quizzes", "/create", "/play"]
+const protectedRoutes = ["/quizzes", "/create", "/play", "/quiz-ia"]
 
 // Routes d'authentification
 const authRoutes = ["/login", "/signup"]

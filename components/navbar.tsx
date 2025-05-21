@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
-import { MusicIcon, PlusCircleIcon, PlayCircleIcon, HomeIcon, LogOutIcon } from "lucide-react"
+import { MusicIcon, PlusCircleIcon, PlayCircleIcon, HomeIcon, LogOutIcon, SparklesIcon } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 export function Navbar() {
@@ -58,6 +58,13 @@ export function Navbar() {
             Créer
           </Link>
           <Link
+            href="/quiz-ia"
+            className={`text-sm font-medium transition-colors hover:text-primary flex items-center gap-1 ${pathname === "/quiz-ia" ? "text-primary" : "text-muted-foreground"}`}
+          >
+            <SparklesIcon className="h-4 w-4" />
+            IA
+          </Link>
+          <Link
             href="/quizzes"
             className={`text-sm font-medium transition-colors hover:text-primary ${pathname === "/quizzes" ? "text-primary" : "text-muted-foreground"}`}
           >
@@ -86,6 +93,12 @@ export function Navbar() {
               <Link href="/create">
                 <PlusCircleIcon className="h-5 w-5" />
                 <span className="sr-only">Créer</span>
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/quiz-ia">
+                <SparklesIcon className="h-5 w-5" />
+                <span className="sr-only">IA</span>
               </Link>
             </Button>
             <Button variant="ghost" size="icon" asChild>
