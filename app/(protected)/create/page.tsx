@@ -152,6 +152,7 @@ export default function CreateQuiz() {
                         setSelectedTracks([...selectedTracks, track])
                       }
                     }}
+                    selectedTrackIds={selectedTracks.map(track => track.id)}
                   />
                 </CardContent>
               </Card>
@@ -209,7 +210,8 @@ export default function CreateQuiz() {
                 title={quizTitle || "Titre du quiz"}
                 description={quizDescription || "Description du quiz"}
                 trackCount={selectedTracks.length}
-                tracks={selectedTracks.slice(0, 3)}
+                tracks={selectedTracks}
+                onRemoveTrack={handleRemoveTrack}
               />
             </CardContent>
             <CardFooter>

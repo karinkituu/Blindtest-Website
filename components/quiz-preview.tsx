@@ -1,14 +1,34 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MusicIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { MusicIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { useState } from "react"
 
 type QuizPreviewProps = {
   title: string
   description: string
   trackCount: number
   tracks?: any[]
+  onRemoveTrack?: (trackId: string) => void
 }
 
-export function QuizPreview({ title, description, trackCount, tracks = [] }: QuizPreviewProps) {
+export function QuizPreview({ 
+  title, 
+  description, 
+  trackCount, 
+  tracks = [], 
+  onRemoveTrack 
+}: QuizPreviewProps) {
+  const [showAllTracks, setShowAllTracks] = useState(false);
+  
+  // Nombre de pistes à afficher par défaut
+  const defaultTrackCount = 3;
+  
+  // Déterminer les pistes à afficher
+  const displayedTracks = showAllTracks ? tracks : tracks.slice(0, defaultTrackCount);
+  
+  // Calculer le nombre de pistes restantes
+  const remainingTracks = trackCount - defaultTrackCount;
+  
   return (
     <Card className="border-dashed">
       <CardHeader className="pb-2">
@@ -29,8 +49,8 @@ export function QuizPreview({ title, description, trackCount, tracks = [] }: Qui
 
         <div className="mt-4 space-y-2">
           {trackCount > 0 ? (
-            tracks.length > 0 ? (
-              tracks.map((track) => (
+            displayedTracks.length > 0 ? (
+              displayedTracks.map((track) => (
                 <div key={track.id} className="flex items-center gap-2 p-2 rounded-md bg-muted">
                   <img
                     src={track.image || "/placeholder.svg?height=30&width=30"}
@@ -45,10 +65,21 @@ export function QuizPreview({ title, description, trackCount, tracks = [] }: Qui
                       {track.artist}
                     </p>
                   </div>
+                  {onRemoveTrack && (
+                    <Button 
+                      size="icon" 
+                      variant="ghost" 
+                      className="h-7 w-7 rounded-full hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => onRemoveTrack(track.id)}
+                      title="Supprimer"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               ))
             ) : (
-              Array.from({ length: Math.min(trackCount, 3) }).map((_, i) => (
+              Array.from({ length: Math.min(trackCount, defaultTrackCount) }).map((_, i) => (
                 <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
               ))
             )
@@ -58,8 +89,28 @@ export function QuizPreview({ title, description, trackCount, tracks = [] }: Qui
             </div>
           )}
 
-          {trackCount > 3 && (
-            <div className="text-center text-sm text-muted-foreground">+{trackCount - 3} autres chansons</div>
+          {!showAllTracks && trackCount > defaultTrackCount && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full mt-2 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowAllTracks(true)}
+            >
+              <ChevronDownIcon className="h-4 w-4 mr-1" />
+              Afficher les {remainingTracks} autres chansons
+            </Button>
+          )}
+
+          {showAllTracks && trackCount > defaultTrackCount && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full mt-2 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowAllTracks(false)}
+            >
+              <ChevronUpIcon className="h-4 w-4 mr-1" />
+              Réduire l'affichage
+            </Button>
           )}
         </div>
       </CardContent>

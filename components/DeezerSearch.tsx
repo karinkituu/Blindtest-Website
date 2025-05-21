@@ -17,12 +17,12 @@ type Track = {
 type SearchResultsProps = {
   query: string
   onAddTrack: (track: Track) => void
+  selectedTrackIds: string[]
 }
 
-export function DeezerSearch({ query, onAddTrack }: SearchResultsProps) {
+export function DeezerSearch({ query, onAddTrack, selectedTrackIds }: SearchResultsProps) {
   const [results, setResults] = useState<Track[]>([])
   const [loading, setLoading] = useState(false)
-  const [addedTracks, setAddedTracks] = useState<string[]>([])
 
   useEffect(() => {
     const searchDeezer = async () => {
@@ -67,7 +67,6 @@ export function DeezerSearch({ query, onAddTrack }: SearchResultsProps) {
 
   const handleAddTrack = (track: Track) => {
     onAddTrack(track)
-    setAddedTracks([...addedTracks, track.id])
   }
 
   if (loading) {
@@ -121,13 +120,13 @@ export function DeezerSearch({ query, onAddTrack }: SearchResultsProps) {
                 )}
                 <Button
                   size="sm"
-                  variant={addedTracks.includes(track.id) ? "outline" : "default"}
+                  variant={selectedTrackIds.includes(track.id) ? "outline" : "default"}
                   onClick={() => handleAddTrack(track)}
-                  disabled={addedTracks.includes(track.id)}
+                  disabled={selectedTrackIds.includes(track.id)}
                   className="w-full sm:w-auto whitespace-nowrap"
                 >
                   <PlusIcon className="h-4 w-4 mr-1" />
-                  {addedTracks.includes(track.id) ? "Ajouté" : "Ajouter"}
+                  {selectedTrackIds.includes(track.id) ? "Ajouté" : "Ajouter"}
                 </Button>
               </div>
             </div>
