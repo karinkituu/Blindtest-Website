@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Progress } from "@/components/ui/progress"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { MusicIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon, XIcon, AlertTriangleIcon } from "lucide-react"
+import { MusicIcon, ArrowLeftIcon, ArrowRightIcon, CheckIcon, XIcon, AlertTriangleIcon, PlayIcon, PauseIcon, RefreshCwIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import Image from "next/image"
 
@@ -46,9 +46,54 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
   const [dataInitialized, setDataInitialized] = useState(false)
   const [trackLoadError, setTrackLoadError] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
   
   // Utiliser useRef au lieu de useState pour l'élément audio
   const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Fonction pour contrôler la lecture audio
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(err => {
+        console.error("Error playing audio:", err);
+      });
+    }
+  }
+  
+  // Fonction pour rejouer l'audio depuis le début
+  const replayAudio = () => {
+    if (!audioRef.current) return;
+    
+    audioRef.current.currentTime = 0;
+    audioRef.current.play().catch(err => {
+      console.error("Error replaying audio:", err);
+    });
+  }
+  
+  // Effet pour suivre les événements de l'audio de manière plus fiable
+  useEffect(() => {
+    const audio = audioRef.current;
+    
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => setIsPlaying(false);
+    
+    if (audio) {
+      audio.addEventListener('play', handlePlay);
+      audio.addEventListener('pause', handlePause);
+      audio.addEventListener('ended', handleEnded);
+      
+      return () => {
+        audio.removeEventListener('play', handlePlay);
+        audio.removeEventListener('pause', handlePause);
+        audio.removeEventListener('ended', handleEnded);
+      };
+    }
+  }, [currentPreviewUrl]);
 
   // Chargement initial du quiz
   useEffect(() => {
@@ -226,7 +271,6 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
       // Arrêter l'audio précédent si existant
       if (audioRef.current) {
         audioRef.current.pause()
-        audioRef.current.src = ""
       }
       
       // Obtenir la piste correcte
@@ -240,7 +284,6 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
           generateOptions(updatedTrack)
           
           // Mettre à jour l'URL du preview
-          console.log("Setting preview URL for new question:", updatedTrack.preview || "No preview available")
           setCurrentPreviewUrl(updatedTrack.preview || null)
           
           if (!updatedTrack.preview) {
@@ -322,8 +365,10 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
   const nextQuestion = () => {
     setSelectedAnswer("")
     setShowResult(false)
+    setRetryCount(0)
 
     if (quiz && currentQuestion < quiz.tracks.length - 1) {
+      // Passer à la question suivante
       setCurrentQuestion(currentQuestion + 1)
     } else {
       setGameOver(true)
@@ -378,6 +423,22 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
         })
     }
   }
+
+  // Effet pour lancer automatiquement la lecture audio quand l'URL change
+  useEffect(() => {
+    if (currentPreviewUrl && audioRef.current && !showResult) {
+      // Un petit délai pour laisser le temps à l'élément audio de se charger
+      const playPromise = setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.play().catch(err => {
+            console.error("Autoplay prevented:", err);
+          });
+        }
+      }, 300);
+      
+      return () => clearTimeout(playPromise);
+    }
+  }, [currentPreviewUrl, showResult]);
 
   if (loading || !dataInitialized) {
     return (
@@ -461,9 +522,9 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>{quiz.title}</CardTitle>
-              <CardDescription>
+            <div className="max-w-[70%]">
+              <CardTitle className="truncate" title={quiz.title}>{quiz.title}</CardTitle>
+              <CardDescription className="truncate" title={quiz.description || ""}>
                 Question {currentQuestion + 1} sur {quiz.tracks.length}
               </CardDescription>
             </div>
@@ -516,13 +577,60 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
                 <div className="w-full">
                   <audio 
                     ref={audioRef}
-                    src={currentPreviewUrl || undefined} 
-                    controls 
-                    className="w-full max-w-xs" 
+                    src={currentPreviewUrl}
+                    controls={false} 
+                    className="w-full" 
                     controlsList="nodownload"
                     preload="auto"
-                    key={currentPreviewUrl} // Forcer la recréation du composant audio
                   />
+                  <div className="flex items-center justify-between w-full bg-secondary/20 px-3 py-2 rounded-md mt-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className={`${isPlaying ? 'animate-ping' : 'hidden'} absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75`}></span>
+                        <span className={`relative inline-flex rounded-full h-3 w-3 ${isPlaying ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+                      </span>
+                      <span className={`text-sm ${isPlaying ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        {isPlaying ? 'Lecture en cours' : 'En pause'}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <button 
+                        type="button" 
+                        onClick={togglePlayPause}
+                        className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                        aria-label={isPlaying ? "Mettre en pause" : "Lire"}
+                      >
+                        {isPlaying ? 
+                          <PauseIcon className="h-5 w-5 text-primary" /> : 
+                          <PlayIcon className="h-5 w-5 text-primary" />
+                        }
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={replayAudio}
+                        className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                        aria-label="Rejouer"
+                      >
+                        <RefreshCwIcon className="h-5 w-5 text-primary" />
+                      </button>
+                      <div className="flex items-center ml-2">
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="1" 
+                          step="0.1" 
+                          defaultValue="1"
+                          className="w-24 h-2 bg-gray-200 rounded-full appearance-none cursor-pointer dark:bg-gray-700" 
+                          onChange={(e) => {
+                            if (audioRef.current) {
+                              audioRef.current.volume = parseFloat(e.target.value);
+                            }
+                          }}
+                          title="Volume"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-amber-500">
@@ -539,7 +647,7 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
                 className="space-y-3"
               >
                 {options.map((option) => (
-                  <div key={option.id} className="flex items-center space-x-2">
+                  <div key={option.id} className="flex items-center space-x-2 p-2 rounded-md hover:bg-secondary/20">
                     <RadioGroupItem
                       value={option.id}
                       id={option.id}
@@ -547,7 +655,7 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
                     />
                     <Label
                       htmlFor={option.id}
-                      className={`flex-1 cursor-pointer ${
+                      className={`flex-1 cursor-pointer break-words ${
                         showResult
                           ? option.isCorrect
                             ? "text-green-500"
@@ -556,14 +664,15 @@ export default function PlayQuiz({ params }: { params: Promise<{ id: string }> }
                               : ""
                           : ""
                       }`}
+                      title={option.text}
                     >
                       {option.text}
                     </Label>
                     {showResult && option.isCorrect && (
-                      <CheckIcon className="h-4 w-4 text-green-500" />
+                      <CheckIcon className="h-4 w-4 text-green-500 flex-shrink-0" />
                     )}
                     {showResult && !option.isCorrect && option.id === selectedAnswer && (
-                      <XIcon className="h-4 w-4 text-red-500" />
+                      <XIcon className="h-4 w-4 text-red-500 flex-shrink-0" />
                     )}
                   </div>
                 ))}

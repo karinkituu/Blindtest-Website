@@ -12,8 +12,12 @@ export function QuizPreview({ title, description, trackCount, tracks = [] }: Qui
   return (
     <Card className="border-dashed">
       <CardHeader className="pb-2">
-        <CardTitle className="text-xl">{title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
+        <CardTitle className="text-xl truncate" title={title}>{title}</CardTitle>
+        {description && (
+          <CardDescription className="truncate" title={description}>
+            {description}
+          </CardDescription>
+        )}
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-2 text-sm">
@@ -30,12 +34,16 @@ export function QuizPreview({ title, description, trackCount, tracks = [] }: Qui
                 <div key={track.id} className="flex items-center gap-2 p-2 rounded-md bg-muted">
                   <img
                     src={track.image || "/placeholder.svg?height=30&width=30"}
-                    alt={track.name}
-                    className="w-8 h-8 rounded"
+                    alt={track.title || track.name}
+                    className="w-8 h-8 rounded flex-shrink-0"
                   />
-                  <div className="overflow-hidden">
-                    <p className="text-sm font-medium truncate">{track.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate" title={track.title || track.name}>
+                      {track.title || track.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate" title={track.artist}>
+                      {track.artist}
+                    </p>
                   </div>
                 </div>
               ))

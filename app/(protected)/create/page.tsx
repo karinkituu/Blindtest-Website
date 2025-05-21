@@ -171,20 +171,20 @@ export default function CreateQuiz() {
                     <div className="space-y-4">
                       {selectedTracks.map((track) => (
                         <div key={track.id} className="flex items-center justify-between p-3 rounded-md bg-card border">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
                             <img
                               src={track.image || "/placeholder.svg?height=40&width=40"}
                               alt={track.title}
-                              className="w-10 h-10 rounded"
+                              className="w-10 h-10 rounded flex-shrink-0"
                             />
-                            <div>
-                              <p className="font-medium">{track.title}</p>
-                              <p className="text-sm text-muted-foreground">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium truncate" title={track.title}>{track.title}</p>
+                              <p className="text-sm text-muted-foreground truncate" title={`${track.artist} • ${track.album}`}>
                                 {track.artist} • {track.album}
                               </p>
                             </div>
                           </div>
-                          <Button size="sm" variant="destructive" onClick={() => handleRemoveTrack(track.id)}>
+                          <Button size="sm" variant="destructive" onClick={() => handleRemoveTrack(track.id)} className="flex-shrink-0">
                             <TrashIcon className="h-4 w-4" />
                             <span className="sr-only">Supprimer</span>
                           </Button>
